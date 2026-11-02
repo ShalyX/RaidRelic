@@ -80,6 +80,13 @@ class HostedEngineTests(unittest.TestCase):
         self.assertEqual(session['phase'], 'ARCHIVED')
         self.assertIsNotNone(session['relic'])
 
+    def test_oauth_state_is_one_time_and_expires(self):
+        state = self.store.create_oauth_state(ttl=10, now=100)
+        self.assertTrue(self.store.consume_oauth_state(state, now=105))
+        self.assertFalse(self.store.consume_oauth_state(state, now=106))
+        expired = self.store.create_oauth_state(ttl=10, now=100)
+        self.assertFalse(self.store.consume_oauth_state(expired, now=111))
+
 
 if __name__ == '__main__':
     unittest.main()

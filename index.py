@@ -200,7 +200,7 @@ async def state(request: Request, overlay: str | None = None):
 async def auth_twitch(request: Request):
     if not service_ready():
         raise HTTPException(status_code=503, detail='RaidRelic hosted service is not fully configured yet.')
-    state = secrets.token_urlsafe(32)
+    state = store.create_oauth_state(ttl=600)
     url = TWITCH_AUTHORIZE + '?' + urlencode({
         'response_type': 'code',
         'client_id': client_id(),
@@ -217,7 +217,8 @@ async def auth_twitch(request: Request):
 @app.get('/auth/callback')
 async def auth_callback(request: Request, code: str | None = None, state: str | None = None, error: str | None = None):
     expected_state = request.cookies.get('raidrelic_oauth')
-    if not state or not expected_state or not secrets.compare_digest(state, expected_state):
+    cookie_mismatch = bool(expected_state and state and not secrets.compare_digest(state, expected_state))
+    if not state or cookie_mismatch or not store.consume_oauth_state(state):
         raise HTTPException(status_code=403, detail='OAuth state invalid or expired. Reconnect Twitch.')
     if error or not code:
         raise HTTPException(status_code=400, detail='Twitch authorization was not granted.')

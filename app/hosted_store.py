@@ -91,12 +91,35 @@ class HostedStore:
                 data TEXT NOT NULL,
                 updated_at REAL NOT NULL
             )''',
+            '''CREATE TABLE IF NOT EXISTS oauth_states (
+                state TEXT PRIMARY KEY,
+                expires_at REAL NOT NULL
+            )''',
             'CREATE INDEX IF NOT EXISTS idx_sessions_broadcaster ON sessions(broadcaster_id, updated_at)',
             'CREATE INDEX IF NOT EXISTS idx_sessions_phase ON sessions(broadcaster_id, phase)',
         ]
         with self.engine.begin() as conn:
             for statement in ddl:
                 conn.execute(text(statement))
+
+    def create_oauth_state(self, ttl=600, now=None):
+        now = time.time() if now is None else now
+        state = secrets.token_urlsafe(32)
+        with self.engine.begin() as conn:
+            conn.execute(text('DELETE FROM oauth_states WHERE expires_at < :now'), {'now': now})
+            conn.execute(text('INSERT INTO oauth_states(state, expires_at) VALUES(:state, :expires)'), {
+                'state': state, 'expires': now + ttl})
+        return state
+
+    def consume_oauth_state(self, state, now=None):
+        if not state:
+            return False
+        now = time.time() if now is None else now
+        with self.engine.begin() as conn:
+            result = conn.execute(text('DELETE FROM oauth_states WHERE state=:state AND expires_at >= :now'), {
+                'state': state, 'now': now})
+            conn.execute(text('DELETE FROM oauth_states WHERE expires_at < :now'), {'now': now})
+        return result.rowcount == 1
 
     def upsert_streamer(self, twitch_user_id, login, display_name, access_token_enc, refresh_token_enc):
         now = time.time()
