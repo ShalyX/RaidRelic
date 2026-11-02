@@ -45,3 +45,5 @@ demo_cards/
 demo_review/
 demo_segments/
 make_demo_cards.py
+
+fix_encoding.py
