@@ -75,21 +75,26 @@ python -m app.server
 
 Open `http://localhost:3000`.
 
-### Connect Twitch
+### Streamer onboarding
 
-Create a Twitch developer application with this exact OAuth redirect URL:
+RaidRelic now treats Twitch application credentials as **host-owned infrastructure**, not streamer setup.
 
-```text
-http://localhost:3000/auth/callback
-```
+For a hosted instance, configure the RaidRelic Twitch app once on the server with `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET`, `RAIDRELIC_BASE_URL=https://your-host`, and `RAIDRELIC_PUBLIC=1`. Register `<RAIDRELIC_BASE_URL>/auth/callback` as the Twitch OAuth redirect URL.
 
-Set `TWITCH_CLIENT_ID` and `TWITCH_CLIENT_SECRET` in the process environment, then start the app and authorize the receiving broadcaster. The UI is ready when it reports `connected · 2/2 EventSub`.
+The streamer-facing flow is then:
 
-On Windows, `Start-RaidRelic-Secure.ps1` provides a local launcher that prompts for the Client ID and hidden Client Secret and keeps them only in the process environment.
+1. Open RaidRelic.
+2. Click **Connect Twitch** and authorize the channel.
+3. Click **Copy OBS URL**.
+4. Paste it into an OBS Browser Source at **1920×1080**.
+
+No Twitch developer application, client secret, Python configuration, or EventSub setup is required from the streamer.
+
+For local development, the default base URL remains `http://localhost:3000`. `Start-RaidRelic-Secure.ps1` can still prompt the developer/operator for host credentials and keep them only in the process environment.
 
 ### Add the OBS overlay
 
-After authorization, copy the displayed `/overlay/<broadcaster-id>` URL into an OBS Browser Source. Recommended canvas/source size: **1920×1080**. The page background is transparent so the live stream remains visible behind the RaidRelic takeover.
+After authorization, the dashboard exposes the broadcaster-specific `/overlay/<broadcaster-id>` URL with one-click copy/open controls. The page background is transparent so the live stream remains visible behind the RaidRelic takeover.
 
 ## Development simulation
 
@@ -107,7 +112,7 @@ Use `/overlay/simulation` only for local visual iteration. Real acceptance evide
 python -m unittest discover -s tests -v
 ```
 
-Current result: **6/6 passing**. Tests cover event deduplication, source isolation, concurrent/late chat guards, archive/restart behavior, EventSub reconnect contract behavior, and HTTP/SSE/simulation guards.
+Current result: **7/7 passing**. Tests cover event deduplication, source isolation, concurrent/late chat guards, archive/restart behavior, EventSub reconnect contract behavior, and HTTP/SSE/simulation guards.
 
 ## Security / data handling
 
@@ -124,4 +129,4 @@ Codex build session: `01a18920-5b89-704d-a5d8-fe8f5e392069`.
 
 ## Known limits
 
-RaidRelic is a hackathon prototype: one broadcaster per process, local/loopback hosting, no production multi-tenant auth, no automatic OAuth refresh, and no replay of Twitch events missed while EventSub is disconnected. The product intentionally focuses on the live raid → community forge → relic archive loop.
+RaidRelic is still a hackathon prototype: one broadcaster per process/hosted instance, no production multi-tenant account system yet, and no replay of Twitch events missed while EventSub is disconnected. Hosted single-broadcaster mode and automatic OAuth token refresh are supported; the next product step is turning that into a true multi-tenant service with one permanent overlay URL per streamer.

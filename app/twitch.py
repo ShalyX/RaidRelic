@@ -7,27 +7,47 @@ import aiohttp
 WS_URL = 'wss://eventsub.wss.twitch.tv/ws'
 API_URL = 'https://api.twitch.tv/helix/eventsub/subscriptions'
 VALIDATE_URL = 'https://id.twitch.tv/oauth2/validate'
+TOKEN_URL = 'https://id.twitch.tv/oauth2/token'
 
 
 class Twitch:
-    def __init__(self, engine, client_id, token, http):
+    def __init__(self, engine, client_id, token, http, client_secret='', refresh_token=''):
         self.engine, self.client_id, self.token, self.http = engine, client_id, token, http
+        self.client_secret, self.refresh_token = client_secret, refresh_token
         self.status = {'state': 'disconnected', 'channel_id': None, 'login': None, 'subscriptions': []}
         self.validated_at = 0
         self.task = None
         self.ws = None
-        self.ws_url, self.api_url, self.validate_url = WS_URL, API_URL, VALIDATE_URL
+        self.ws_url, self.api_url, self.validate_url, self.token_url = WS_URL, API_URL, VALIDATE_URL, TOKEN_URL
 
     def update(self, **fields):
         self.status.update(fields)
         self.engine.changed()
 
-    async def validate(self):
-        async with self.http.get(self.validate_url, headers={'Authorization': 'OAuth ' + self.token}) as r:
+    async def refresh_access_token(self):
+        if not self.client_secret or not self.refresh_token:
+            raise PermissionError('Twitch authorization expired; reconnect Twitch.')
+        async with self.http.post(self.token_url, data={
+            'grant_type': 'refresh_token', 'refresh_token': self.refresh_token,
+            'client_id': self.client_id, 'client_secret': self.client_secret}) as r:
             if r.status != 200:
-                raise PermissionError('Twitch token invalid; reconnect Twitch.')
+                raise PermissionError('Twitch authorization expired; reconnect Twitch.')
             data = await r.json()
-        if data.get('client_id') != self.client_id or not data.get('user_id') or 'user:read:chat' not in data.get('scopes', []):
+        self.token = data['access_token']
+        self.refresh_token = data.get('refresh_token') or self.refresh_token
+
+    async def validate(self):
+        data = None
+        for attempt in range(2):
+            async with self.http.get(self.validate_url, headers={'Authorization': 'OAuth ' + self.token}) as r:
+                if r.status == 200:
+                    data = await r.json()
+                    break
+                if r.status == 401 and attempt == 0 and self.refresh_token:
+                    await self.refresh_access_token()
+                    continue
+                raise PermissionError('Twitch token invalid; reconnect Twitch.')
+        if not data or data.get('client_id') != self.client_id or not data.get('user_id') or 'user:read:chat' not in data.get('scopes', []):
             raise PermissionError('Use broadcaster user token for this client with user:read:chat.')
         self.validated_at = time.monotonic()
         self.update(channel_id=data['user_id'], login=data['login'])

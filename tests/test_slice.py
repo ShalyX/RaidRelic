@@ -84,6 +84,31 @@ class IntegrationTests(unittest.IsolatedAsyncioTestCase):
         async with TestClient(TestServer(app)) as client:
             self.assertEqual((await client.post('/dev/simulate', json={'kind':'raid'})).status, 404)
 
+    async def test_oauth_refresh_keeps_streamer_connected(self):
+        calls = {'validate': 0, 'refresh': 0}
+        async def validate(req):
+            calls['validate'] += 1
+            if req.headers.get('Authorization') == 'OAuth old':
+                return web.Response(status=401)
+            self.assertEqual(req.headers.get('Authorization'), 'OAuth fresh')
+            return web.json_response({'client_id':'client', 'user_id':'42','login':'receiver','scopes':['user:read:chat']})
+        async def refresh(req):
+            calls['refresh'] += 1
+            data = await req.post()
+            self.assertEqual(data['refresh_token'], 'refresh-old')
+            self.assertEqual(data['client_secret'], 'secret')
+            return web.json_response({'access_token':'fresh','refresh_token':'refresh-new'})
+        mock = web.Application(); mock.add_routes([web.get('/validate', validate), web.post('/token', refresh)])
+        async with TestServer(mock) as server, ClientSession() as http:
+            e = Engine(':memory:')
+            t = Twitch(e, 'client', 'old', http, client_secret='secret', refresh_token='refresh-old')
+            t.validate_url = str(server.make_url('/validate')); t.token_url = str(server.make_url('/token'))
+            await t.validate()
+            self.assertEqual((t.token, t.refresh_token), ('fresh', 'refresh-new'))
+            self.assertEqual((calls['validate'], calls['refresh']), (2, 1))
+            self.assertEqual(t.status['login'], 'receiver')
+            e.db.close()
+
     async def test_eventsub_contract_reconnect_adapter(self):
         """Local fake Twitch transport. NOT live Twitch evidence."""
         subscriptions, seen = [], []

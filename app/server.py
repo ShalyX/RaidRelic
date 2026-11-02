@@ -23,7 +23,9 @@ def create_app(db_path=None):
     queues = set()
     client_id = os.getenv('TWITCH_CLIENT_ID', '')
     client_secret = os.getenv('TWITCH_CLIENT_SECRET', '')
-    redirect = os.getenv('TWITCH_REDIRECT_URI', 'http://localhost:3000/auth/callback')
+    public_mode = os.getenv('RAIDRELIC_PUBLIC') == '1'
+    base_url = os.getenv('RAIDRELIC_BASE_URL', 'http://localhost:3000').rstrip('/')
+    redirect = os.getenv('TWITCH_REDIRECT_URI') or base_url + '/auth/callback'
     simulation = os.getenv('RAIDRELIC_SIMULATION') == '1'
     csrf = {}
     twitch = None
@@ -36,11 +38,12 @@ def create_app(db_path=None):
 
     @web.middleware
     async def local_only(req, handler):
-        # This prototype is deliberately loopback-only; no public dashboard auth yet.
-        if req.host.split(':')[0] not in ('localhost', '127.0.0.1'):
+        # Local by default. A dedicated hosted instance can opt into public mode.
+        if not public_mode and req.host.split(':')[0] not in ('localhost', '127.0.0.1'):
             raise web.HTTPForbidden(text='Use localhost or 127.0.0.1.')
         origin = req.headers.get('Origin')
-        if origin and origin != f'{req.scheme}://{req.host}':
+        proto = req.headers.get('X-Forwarded-Proto', req.scheme)
+        if origin and origin != f'{proto}://{req.host}':
             raise web.HTTPForbidden(text='Same-origin requests only.')
         response = await handler(req)
         response.headers['Cache-Control'] = 'no-store'
@@ -53,7 +56,7 @@ def create_app(db_path=None):
     def snapshot():
         status = twitch.status if twitch else {'state': 'credentials_required', 'channel_id': None, 'subscriptions': []}
         sessions = engine.sessions()
-        return {'connection': status, 'simulation_enabled': simulation, 'now': time.time(),
+        return {'connection': status, 'simulation_enabled': simulation, 'service_ready': bool(client_id and client_secret), 'now': time.time(),
                 'sessions': [{**{k:v for k,v in s.items() if k != 'participants'},
                               'unique_chatters': len(s['participants'])} for s in sessions]}
 
@@ -81,11 +84,11 @@ def create_app(db_path=None):
             queues.discard(q)
         return response
 
-    async def connect(token):
+    async def connect(token, refresh_token=''):
         nonlocal twitch
         if twitch:
             await twitch.stop()
-        twitch = Twitch(engine, client_id, token, app[HTTP_KEY])
+        twitch = Twitch(engine, client_id, token, app[HTTP_KEY], client_secret=client_secret, refresh_token=refresh_token)
         twitch.task = asyncio.create_task(twitch.run())
 
     async def auth(req):
@@ -111,8 +114,10 @@ def create_app(db_path=None):
             'grant_type': 'authorization_code', 'redirect_uri': redirect}) as r:
             if r.status != 200:
                 raise web.HTTPBadGateway(text='Token exchange failed; reconnect Twitch.')
-            token = (await r.json())['access_token']
-        await connect(token)
+            token_data = await r.json()
+            token = token_data['access_token']
+            refresh_token = token_data.get('refresh_token', '')
+        await connect(token, refresh_token)
         response = web.HTTPFound('/')
         response.del_cookie('raidrelic_oauth')
         return response
@@ -141,7 +146,7 @@ def create_app(db_path=None):
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15), trust_env=True) as http:
             app[HTTP_KEY] = http
             if os.getenv('TWITCH_ACCESS_TOKEN') and client_id:
-                await connect(os.environ['TWITCH_ACCESS_TOKEN'])
+                await connect(os.environ['TWITCH_ACCESS_TOKEN'], os.getenv('TWITCH_REFRESH_TOKEN', ''))
             async def ticker():
                 while True:
                     engine.tick()
@@ -164,4 +169,5 @@ def create_app(db_path=None):
 
 
 if __name__ == '__main__':
-    web.run_app(create_app(), host='127.0.0.1', port=int(os.getenv('PORT', '3000')), access_log=None)
+    host = '0.0.0.0' if os.getenv('RAIDRELIC_PUBLIC') == '1' else '127.0.0.1'
+    web.run_app(create_app(), host=host, port=int(os.getenv('PORT', '3000')), access_log=None)
