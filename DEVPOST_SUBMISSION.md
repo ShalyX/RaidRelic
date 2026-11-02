@@ -44,7 +44,8 @@ Python, aiohttp, Twitch EventSub WebSocket, Twitch OAuth/chat, Server-Sent Event
 - Final evidence session: 1 raid viewer, 8 messages, 1 unique chatter, 2 emotes, 47 charge â†’ RARE RAID.
 
 ## Submission fields
-- Repository URL: **TODO after GitHub push**
+- Repository URL: https://github.com/ShalyX/RaidRelic
 - YouTube demo URL: **TODO after upload**
 - Codex Session ID: `01a18920-5b89-704d-a5d8-fe8f5e392069`
+
 
