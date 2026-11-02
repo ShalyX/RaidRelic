@@ -83,3 +83,5 @@ finish_v3*.log
 inspect_*.py
 emote_encode.log
 SUBMIT_NOW.txt
+.vercel
+.env*
