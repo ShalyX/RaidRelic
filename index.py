@@ -218,7 +218,11 @@ async def auth_twitch(request: Request):
 async def auth_callback(request: Request, code: str | None = None, state: str | None = None, error: str | None = None):
     expected_state = request.cookies.get('raidrelic_oauth')
     cookie_mismatch = bool(expected_state and state and not secrets.compare_digest(state, expected_state))
-    if not state or cookie_mismatch or not store.consume_oauth_state(state):
+    state_valid = bool(state and not cookie_mismatch and store.consume_oauth_state(state))
+    if not state_valid:
+        session_user_id = verify_session(request.cookies.get('raidrelic_session'))
+        if session_user_id and store.get_streamer_by_id(session_user_id):
+            return RedirectResponse('/', status_code=303)
         raise HTTPException(status_code=403, detail='OAuth state invalid or expired. Reconnect Twitch.')
     if error or not code:
         raise HTTPException(status_code=400, detail='Twitch authorization was not granted.')

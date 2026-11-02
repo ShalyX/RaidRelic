@@ -2,6 +2,9 @@ import os
 import tempfile
 import unittest
 
+from fastapi.testclient import TestClient
+
+import index as hosted_app
 from app.hosted_engine import HostedEngine
 from app.hosted_store import HostedStore
 
@@ -86,6 +89,39 @@ class HostedEngineTests(unittest.TestCase):
         self.assertFalse(self.store.consume_oauth_state(state, now=106))
         expired = self.store.create_oauth_state(ttl=10, now=100)
         self.assertFalse(self.store.consume_oauth_state(expired, now=111))
+
+
+class HostedOAuthTests(unittest.TestCase):
+    def test_refreshing_consumed_callback_recovers_existing_session(self):
+        fd, path = tempfile.mkstemp(suffix='.sqlite3')
+        os.close(fd)
+        replacement_store = HostedStore('sqlite:///' + path.replace('\\', '/'))
+        original_store = hosted_app.store
+        original_secret = os.environ.get('RAIDRELIC_SESSION_SECRET')
+        try:
+            hosted_app.store = replacement_store
+            os.environ['RAIDRELIC_SESSION_SECRET'] = 'test-session-secret'
+            replacement_store.upsert_streamer(
+                twitch_user_id='streamer-1', login='streamer', display_name='Streamer',
+                access_token_enc='encrypted-access', refresh_token_enc='encrypted-refresh')
+            session = hosted_app.sign_session('streamer-1')
+            client = TestClient(hosted_app.app)
+            response = client.get(
+                '/auth/callback?state=already-consumed',
+                cookies={'raidrelic_session': session},
+                follow_redirects=False,
+            )
+            self.assertEqual(response.status_code, 303)
+            self.assertEqual(response.headers['location'], '/')
+        finally:
+            hosted_app.store = original_store
+            replacement_store.engine.dispose()
+            if original_secret is None:
+                os.environ.pop('RAIDRELIC_SESSION_SECRET', None)
+            else:
+                os.environ['RAIDRELIC_SESSION_SECRET'] = original_secret
+            if os.path.exists(path):
+                os.unlink(path)
 
 
 if __name__ == '__main__':
