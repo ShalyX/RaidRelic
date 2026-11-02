@@ -44,6 +44,10 @@ def webhook_secret():
     return os.getenv('RAIDRELIC_WEBHOOK_SECRET', '').encode()
 
 
+def maintenance_secret():
+    return os.getenv('RAIDRELIC_MAINTENANCE_SECRET', '').strip()
+
+
 def public_base(request: Request):
     configured = os.getenv('RAIDRELIC_BASE_URL', '').strip().rstrip('/')
     if configured:
@@ -245,6 +249,22 @@ async def health():
         'token_encryption': vault.ready,
         'webhook_verification': bool(webhook_secret()),
     }
+
+
+@app.post('/internal/oauth-maintenance')
+async def oauth_maintenance(request: Request):
+    configured = maintenance_secret()
+    supplied = request.headers.get('Authorization', '')
+    expected = 'Bearer ' + configured if configured else ''
+    if not expected or not secrets.compare_digest(supplied, expected):
+        raise HTTPException(status_code=401, detail='Unauthorized.')
+
+    counts = {'valid': 0, 'revoked': 0, 'unknown': 0, 'missing': 0}
+    streamers = store.list_streamers()
+    for streamer in streamers:
+        status = await maintain_user_authorization(streamer)
+        counts[status] = counts.get(status, 0) + 1
+    return {'ok': True, 'streamers': len(streamers), 'status': counts}
 
 
 @app.get('/api/state')

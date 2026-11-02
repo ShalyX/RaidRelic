@@ -104,6 +104,19 @@ class HostedEngineTests(unittest.TestCase):
 
 
 class HostedOAuthTests(unittest.TestCase):
+    def test_maintenance_endpoint_rejects_missing_secret(self):
+        original_secret = os.environ.get('RAIDRELIC_MAINTENANCE_SECRET')
+        try:
+            os.environ['RAIDRELIC_MAINTENANCE_SECRET'] = 'maintenance-test-secret'
+            client = TestClient(hosted_app.app)
+            response = client.post('/internal/oauth-maintenance')
+            self.assertEqual(response.status_code, 401)
+        finally:
+            if original_secret is None:
+                os.environ.pop('RAIDRELIC_MAINTENANCE_SECRET', None)
+            else:
+                os.environ['RAIDRELIC_MAINTENANCE_SECRET'] = original_secret
+
     def test_refreshing_consumed_callback_recovers_existing_session(self):
         fd, path = tempfile.mkstemp(suffix='.sqlite3')
         os.close(fd)

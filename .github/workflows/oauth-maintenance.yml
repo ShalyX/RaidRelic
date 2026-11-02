@@ -1,0 +1,25 @@
+name: RaidRelic OAuth maintenance
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-twitch-grants:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Validate RaidRelic Twitch grants
+        env:
+          MAINTENANCE_SECRET: ${{ secrets.RAIDRELIC_MAINTENANCE_SECRET }}
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error \
+            --retry 2 --retry-all-errors \
+            --request POST \
+            --header "Authorization: Bearer ${MAINTENANCE_SECRET}" \
+            https://raidrelic.vercel.app/internal/oauth-maintenance

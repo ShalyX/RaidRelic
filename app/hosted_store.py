@@ -166,6 +166,11 @@ class HostedStore:
             row = conn.execute(text('SELECT * FROM streamers WHERE overlay_key=:key'), {'key': overlay_key}).mappings().first()
         return self._streamer(row)
 
+    def list_streamers(self):
+        with self.engine.connect() as conn:
+            rows = conn.execute(text('SELECT * FROM streamers ORDER BY updated_at DESC')).mappings().all()
+        return [self._streamer(row) for row in rows]
+
     def set_subscriptions(self, twitch_user_id, subscriptions):
         with self.engine.begin() as conn:
             conn.execute(text('UPDATE streamers SET subscriptions_json=:subs, updated_at=:now WHERE twitch_user_id=:id'), {
@@ -180,7 +185,7 @@ class HostedStore:
 
     def set_oauth_health(self, twitch_user_id, status='valid', checked_at=None, next_check_at=None):
         checked_at = time.time() if checked_at is None else checked_at
-        next_check_at = checked_at + 3600 if next_check_at is None else next_check_at
+        next_check_at = checked_at + 2700 if next_check_at is None else next_check_at
         with self.engine.begin() as conn:
             conn.execute(text('''INSERT INTO oauth_health(twitch_user_id,status,last_checked_at,next_check_at)
                 VALUES(:id,:status,:checked,:next)
