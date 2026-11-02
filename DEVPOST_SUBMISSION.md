@@ -45,7 +45,6 @@ Python, aiohttp, Twitch EventSub WebSocket, Twitch OAuth/chat, Server-Sent Event
 
 ## Submission fields
 - Repository URL: https://github.com/ShalyX/RaidRelic
-- YouTube demo URL: **TODO after upload**
+- YouTube demo URL: https://youtu.be/c4UJU0kPsdI
 - Codex Session ID: `01a18920-5b89-704d-a5d8-fe8f5e392069`
-
 
