@@ -1,0 +1,42 @@
+﻿{
+    "id":  "twitch:KEJz0k5eNbAWCoMx_tYPLb1S6P8zPLfyiS0RnDpkgWI=",
+    "source":  "twitch",
+    "phase":  "ARCHIVED",
+    "started_at":  1793495236.1830447,
+    "ends_at":  1793495281.1830447,
+    "raid":  {
+                 "from_broadcaster_user_id":  "1601021710",
+                 "from_broadcaster_user_login":  "jasseex",
+                 "from_broadcaster_user_name":  "jasseex",
+                 "to_broadcaster_user_id":  "1599174289",
+                 "to_broadcaster_user_login":  "shalyx_04",
+                 "to_broadcaster_user_name":  "shalyx_04",
+                 "viewers":  1
+             },
+    "messages":  5,
+    "emotes":  4,
+    "charge":  36,
+    "last_chat_received_at":  1793495276.6518435,
+    "relic":  {
+                  "seed":  "twitch:KEJz0k5eNbAWCoMx_tYPLb1S6P8zPLfyiS0RnDpkgWI=:5:1:4",
+                  "hue":  72,
+                  "sides":  7,
+                  "facets":  [
+                                 0.6431372549019608,
+                                 0.16862745098039217,
+                                 0.20784313725490197,
+                                 0.8392156862745098,
+                                 0.23529411764705882,
+                                 0.7725490196078432,
+                                 0.06666666666666667,
+                                 0.4196078431372549,
+                                 0.4392156862745098,
+                                 0.10196078431372549,
+                                 0.28627450980392155,
+                                 0.6823529411764706
+                             ]
+              },
+    "completed_at":  1793495281.2106493,
+    "completion_reason":  "timer",
+    "unique_chatters":  1
+}

@@ -1,0 +1,12 @@
+test_dedup_timer_archive_restart_and_seed (test_slice.EngineTests.test_dedup_timer_archive_restart_and_seed) ... ok
+test_other_broadcaster_cannot_charge_existing_forge (test_slice.EngineTests.test_other_broadcaster_cannot_charge_existing_forge) ... ok
+test_second_raid_preserves_first (test_slice.EngineTests.test_second_raid_preserves_first) ... ok
+test_sources_and_late_chat_are_isolated (test_slice.EngineTests.test_sources_and_late_chat_are_isolated) ... ok
+test_eventsub_contract_reconnect_adapter (test_slice.IntegrationTests.test_eventsub_contract_reconnect_adapter)
+Local fake Twitch transport. NOT live Twitch evidence. ... ok
+test_http_sse_and_simulation_guards (test_slice.IntegrationTests.test_http_sse_and_simulation_guards) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.089s
+
+OK

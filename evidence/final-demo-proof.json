@@ -1,0 +1,122 @@
+﻿{
+    "captured_at":  "2026-11-02T00:35:07.8589207+01:00",
+    "capture_mode":  "evidence_replay",
+    "capture_note":  "Four deterministic UI frames re-rendered from one persisted real Twitch session; no simulated chat data used.",
+    "real_twitch_session":  {
+                                "session_id":  "twitch:OnGX0wt8Y7DyZvhWAD_IScvMqmAyVvEjEik5xp0I6ss=",
+                                "from":  "jasseex",
+                                "to":  "shalyx_04",
+                                "viewers":  1,
+                                "messages":  8,
+                                "unique_chatters":  1,
+                                "emotes":  2,
+                                "charge":  47,
+                                "final_rarity":  "RARE RAID",
+                                "recent_chat":  [
+                                                    {
+                                                        "user":  "jasseex",
+                                                        "text":  "lfg",
+                                                        "emotes":  0,
+                                                        "received_at":  1793568655.911131
+                                                    },
+                                                    {
+                                                        "user":  "jasseex",
+                                                        "text":  "PewPewPew",
+                                                        "emotes":  1,
+                                                        "received_at":  1793568665.2067082
+                                                    },
+                                                    {
+                                                        "user":  "jasseex",
+                                                        "text":  "WhoaFace",
+                                                        "emotes":  1,
+                                                        "received_at":  1793568670.2857764
+                                                    },
+                                                    {
+                                                        "user":  "jasseex",
+                                                        "text":  "Yooooo",
+                                                        "emotes":  0,
+                                                        "received_at":  1793568673.7871602
+                                                    },
+                                                    {
+                                                        "user":  "jasseex",
+                                                        "text":  "W raid",
+                                                        "emotes":  0,
+                                                        "received_at":  1793568674.3309186
+                                                    },
+                                                    {
+                                                        "user":  "jasseex",
+                                                        "text":  "GGs",
+                                                        "emotes":  0,
+                                                        "received_at":  1793568675.1422167
+                                                    },
+                                                    {
+                                                        "user":  "jasseex",
+                                                        "text":  "Tf is this chat",
+                                                        "emotes":  0,
+                                                        "received_at":  1793568680.1213548
+                                                    }
+                                                ]
+                            },
+    "stages":  {
+                   "arrival":  {
+                                   "messages":  0,
+                                   "emotes":  0,
+                                   "charge":  0,
+                                   "rarity":  "COMMON RAID",
+                                   "visible_chat":  [
+
+                                                    ]
+                               },
+                   "first_chat":  {
+                                      "messages":  1,
+                                      "emotes":  0,
+                                      "charge":  8,
+                                      "rarity":  "COMMON RAID",
+                                      "visible_chat":  [
+                                                           "jasseex: lfg"
+                                                       ]
+                                  },
+                   "emote_escalation":  {
+                                            "messages":  3,
+                                            "emotes":  2,
+                                            "charge":  22,
+                                            "rarity":  "RARE RAID",
+                                            "visible_chat":  [
+                                                                 "jasseex: lfg",
+                                                                 "jasseex: PewPewPew",
+                                                                 "jasseex: WhoaFace"
+                                                             ]
+                                        },
+                   "drop":  {
+                                "messages":  8,
+                                "emotes":  2,
+                                "charge":  47,
+                                "rarity":  "RARE RAID",
+                                "visible_chat":  [
+                                                     "jasseex: lfg",
+                                                     "jasseex: PewPewPew",
+                                                     "jasseex: WhoaFace",
+                                                     "jasseex: Yooooo",
+                                                     "jasseex: W raid",
+                                                     "jasseex: GGs",
+                                                     "jasseex: Tf is this chat"
+                                                 ]
+                            }
+               },
+    "visual_verification":  {
+                                "fake_chat_visible":  false,
+                                "fake_chat_literals_in_source":  false,
+                                "singular_label":  "1 RAIDER",
+                                "chat_strike_present":  true,
+                                "emote_strike_present":  true,
+                                "evidence_badge":  "EVIDENCE REPLAY · REAL TWITCH DATA"
+                            },
+    "captures":  {
+                     "arrival":  "final-demo-01-arrival.png",
+                     "first_chat":  "final-demo-02-real-chat.png",
+                     "emote":  "final-demo-03-emote-strike.png",
+                     "drop":  "final-demo-04-drop.png"
+                 },
+    "tests":  "6/6 passing",
+    "network_note":  "At package time Twitch EventSub WSS was independently timing out from this PC, so live connection status was retrying/0 subscriptions. Persisted real Twitch evidence remains valid."
+}

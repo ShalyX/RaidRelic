@@ -1,0 +1,39 @@
+.env
+.env.*
+!.env.example
+*.sqlite3*
+__pycache__/
+.venv/
+*.pyc
+runtime/*.log
+runtime/chrome-*/
+
+# Keep the repository evidence set tight; local design iterations stay untracked.
+evidence/*
+!evidence/final-demo-01-arrival.png
+!evidence/final-demo-02-real-chat.png
+!evidence/final-demo-03-emote-strike.png
+!evidence/final-demo-04-drop.png
+!evidence/final-demo-proof.json
+!evidence/live-twitch-run-2026-11-01.md
+!evidence/local-tests.txt
+!evidence/CODEX_BUILD.md
+!evidence/raid-transition-contact.png
+!evidence/real-live-final-proof.json
+!evidence/real-relic-pre-restart.json
+!evidence/real-relic-post-restart.json
+
+# Internal build/operator artifacts
+.hackathon/
+app/index.pre-*.html
+runtime/
+
+# Superseded planning documents kept locally but not needed by judges.
+DEMO.md
+DESIGN.md
+HACKATHON.md
+PRODUCT.md
+PROJECT.md
+SCORECARD.md
+TECHNICAL_DERISK.md
+WORK_HANDOFF.md

@@ -1,0 +1,17 @@
+﻿{
+    "captured_at":  "2026-11-01T21:53:44.1264082+01:00",
+    "connection":  "connected",
+    "subscriptions":  2,
+    "source":  "twitch",
+    "phase":  "ARCHIVED",
+    "id":  "twitch:htVQLTMG8LFE4R-PxQODMckFJdnBiRfkpdxF3ruSags=",
+    "from":  "jasseex",
+    "to":  "shalyx_04",
+    "viewers":  1,
+    "messages":  5,
+    "unique_chatters":  1,
+    "emotes":  2,
+    "charge":  32,
+    "started_at":  1793566278.0674663,
+    "completed_at":  1793566327.9602497
+}
