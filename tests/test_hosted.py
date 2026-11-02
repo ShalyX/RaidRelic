@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
@@ -83,6 +84,17 @@ class HostedEngineTests(unittest.TestCase):
         self.assertEqual(session['phase'], 'ARCHIVED')
         self.assertIsNotNone(session['relic'])
 
+    def test_archives_are_scoped_to_each_broadcaster(self):
+        self.engine.apply(self.raid('r1', 'A', 'alpha'))
+        self.engine.apply(self.raid('r2', 'B', 'beta'))
+        self.clock.now += 46
+        a = self.engine.snapshot_sessions('A')
+        b = self.engine.snapshot_sessions('B')
+        self.assertEqual([s['raid']['from_broadcaster_user_name'] for s in a], ['alpha'])
+        self.assertEqual([s['raid']['from_broadcaster_user_name'] for s in b], ['beta'])
+        self.assertTrue(all(s['broadcaster_id'] == 'A' for s in a))
+        self.assertTrue(all(s['broadcaster_id'] == 'B' for s in b))
+
     def test_oauth_state_is_one_time_and_expires(self):
         state = self.store.create_oauth_state(ttl=10, now=100)
         self.assertTrue(self.store.consume_oauth_state(state, now=105))
@@ -120,6 +132,94 @@ class HostedOAuthTests(unittest.TestCase):
                 os.environ.pop('RAIDRELIC_SESSION_SECRET', None)
             else:
                 os.environ['RAIDRELIC_SESSION_SECRET'] = original_secret
+            if os.path.exists(path):
+                os.unlink(path)
+
+
+class FakeVault:
+    ready = True
+
+    def decrypt(self, value):
+        return {'enc-old-access': 'old-access', 'enc-old-refresh': 'old-refresh'}[value]
+
+    def encrypt(self, value):
+        return 'enc-' + value
+
+
+class FakeResponse:
+    def __init__(self, status_code, payload):
+        self.status_code = status_code
+        self.payload = payload
+        self.text = str(payload)
+
+    def json(self):
+        return self.payload
+
+
+class RefreshHTTP:
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+    async def get(self, url, headers=None, **kwargs):
+        token = (headers or {}).get('Authorization', '')
+        if token.endswith('old-access'):
+            return FakeResponse(401, {'message': 'invalid access token'})
+        return FakeResponse(200, {
+            'client_id': 'client-id',
+            'user_id': 'streamer-1',
+            'login': 'streamer',
+            'scopes': sorted(hosted_app.REQUIRED_SCOPES),
+        })
+
+    async def post(self, url, data=None, **kwargs):
+        if (data or {}).get('grant_type') == 'refresh_token':
+            return FakeResponse(200, {
+                'access_token': 'new-access',
+                'refresh_token': 'new-refresh',
+                'scope': sorted(hosted_app.REQUIRED_SCOPES),
+            })
+        return FakeResponse(400, {'message': 'unexpected request'})
+
+
+class HostedTokenLifecycleTests(unittest.IsolatedAsyncioTestCase):
+    async def test_401_refresh_rotates_and_persists_both_tokens(self):
+        fd, path = tempfile.mkstemp(suffix='.sqlite3')
+        os.close(fd)
+        replacement_store = HostedStore('sqlite:///' + path.replace('\\', '/'))
+        original_store, original_vault = hosted_app.store, hosted_app.vault
+        old_client_id = os.environ.get('TWITCH_CLIENT_ID')
+        old_client_secret = os.environ.get('TWITCH_CLIENT_SECRET')
+        try:
+            hosted_app.store = replacement_store
+            hosted_app.vault = FakeVault()
+            os.environ['TWITCH_CLIENT_ID'] = 'client-id'
+            os.environ['TWITCH_CLIENT_SECRET'] = 'client-secret'
+            replacement_store.upsert_streamer(
+                twitch_user_id='streamer-1', login='streamer', display_name='Streamer',
+                access_token_enc='enc-old-access', refresh_token_enc='enc-old-refresh')
+            replacement_store.set_oauth_health('streamer-1', 'valid', checked_at=0, next_check_at=0)
+            streamer = replacement_store.get_streamer_by_id('streamer-1')
+            with patch('index.httpx.AsyncClient', return_value=RefreshHTTP()):
+                status = await hosted_app.maintain_user_authorization(streamer)
+            self.assertEqual(status, 'valid')
+            updated = replacement_store.get_streamer_by_id('streamer-1')
+            self.assertEqual(updated.access_token_enc, 'enc-new-access')
+            self.assertEqual(updated.refresh_token_enc, 'enc-new-refresh')
+            self.assertEqual(replacement_store.oauth_status('streamer-1'), 'valid')
+        finally:
+            hosted_app.store, hosted_app.vault = original_store, original_vault
+            replacement_store.engine.dispose()
+            if old_client_id is None:
+                os.environ.pop('TWITCH_CLIENT_ID', None)
+            else:
+                os.environ['TWITCH_CLIENT_ID'] = old_client_id
+            if old_client_secret is None:
+                os.environ.pop('TWITCH_CLIENT_SECRET', None)
+            else:
+                os.environ['TWITCH_CLIENT_SECRET'] = old_client_secret
             if os.path.exists(path):
                 os.unlink(path)
 

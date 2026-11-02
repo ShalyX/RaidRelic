@@ -95,6 +95,12 @@ class HostedStore:
                 state TEXT PRIMARY KEY,
                 expires_at REAL NOT NULL
             )''',
+            '''CREATE TABLE IF NOT EXISTS oauth_health (
+                twitch_user_id TEXT PRIMARY KEY,
+                status TEXT NOT NULL DEFAULT 'valid',
+                last_checked_at REAL NOT NULL DEFAULT 0,
+                next_check_at REAL NOT NULL DEFAULT 0
+            )''',
             'CREATE INDEX IF NOT EXISTS idx_sessions_broadcaster ON sessions(broadcaster_id, updated_at)',
             'CREATE INDEX IF NOT EXISTS idx_sessions_phase ON sessions(broadcaster_id, phase)',
         ]
@@ -164,6 +170,40 @@ class HostedStore:
         with self.engine.begin() as conn:
             conn.execute(text('UPDATE streamers SET subscriptions_json=:subs, updated_at=:now WHERE twitch_user_id=:id'), {
                 'subs': json.dumps(sorted(set(subscriptions))), 'now': time.time(), 'id': twitch_user_id})
+
+    def update_tokens(self, twitch_user_id, access_token_enc, refresh_token_enc):
+        with self.engine.begin() as conn:
+            conn.execute(text('''UPDATE streamers SET access_token_enc=:access, refresh_token_enc=:refresh,
+                updated_at=:now WHERE twitch_user_id=:id'''), {
+                'access': access_token_enc, 'refresh': refresh_token_enc,
+                'now': time.time(), 'id': twitch_user_id})
+
+    def set_oauth_health(self, twitch_user_id, status='valid', checked_at=None, next_check_at=None):
+        checked_at = time.time() if checked_at is None else checked_at
+        next_check_at = checked_at + 3600 if next_check_at is None else next_check_at
+        with self.engine.begin() as conn:
+            conn.execute(text('''INSERT INTO oauth_health(twitch_user_id,status,last_checked_at,next_check_at)
+                VALUES(:id,:status,:checked,:next)
+                ON CONFLICT(twitch_user_id) DO UPDATE SET
+                    status=excluded.status,
+                    last_checked_at=excluded.last_checked_at,
+                    next_check_at=excluded.next_check_at'''), {
+                'id': twitch_user_id, 'status': status, 'checked': checked_at, 'next': next_check_at})
+
+    def oauth_status(self, twitch_user_id):
+        with self.engine.connect() as conn:
+            row = conn.execute(text('SELECT status FROM oauth_health WHERE twitch_user_id=:id'), {'id': twitch_user_id}).first()
+        return row[0] if row else 'valid'
+
+    def claim_oauth_check(self, twitch_user_id, now=None, lease=60):
+        now = time.time() if now is None else now
+        with self.engine.begin() as conn:
+            conn.execute(text('''INSERT INTO oauth_health(twitch_user_id,status,last_checked_at,next_check_at)
+                VALUES(:id,'valid',0,0) ON CONFLICT(twitch_user_id) DO NOTHING'''), {'id': twitch_user_id})
+            result = conn.execute(text('''UPDATE oauth_health SET status='checking', next_check_at=:lease_until
+                WHERE twitch_user_id=:id AND next_check_at<=:now'''), {
+                'id': twitch_user_id, 'now': now, 'lease_until': now + lease})
+        return result.rowcount == 1
 
     def remember_event(self, event_id, broadcaster_id):
         with self.engine.begin() as conn:

@@ -3,6 +3,7 @@ import hmac
 import json
 import os
 import secrets
+import time
 from datetime import datetime, timezone
 from urllib.parse import urlencode
 
@@ -74,18 +75,21 @@ def verify_session(value):
     return twitch_user_id if hmac.compare_digest(supplied, expected) else None
 
 
-def connection_payload(streamer):
+def connection_payload(streamer, oauth_status='valid'):
     if not streamer:
         return {'state': 'credentials_required', 'channel_id': None, 'login': None, 'overlay_key': None, 'subscriptions': []}
     subscriptions = streamer.subscriptions or []
     complete = {'channel.raid', 'channel.chat.message'}.issubset(set(subscriptions))
+    revoked = oauth_status == 'revoked'
     return {
-        'state': 'connected' if complete else 'authorization_required',
+        'state': 'authorization_required' if revoked or not complete else 'connected',
         'channel_id': streamer.twitch_user_id,
         'login': streamer.login,
         'overlay_key': streamer.overlay_key,
         'subscriptions': subscriptions,
-        'error': None if complete else 'EventSub setup incomplete. Reconnect Twitch to repair subscriptions.',
+        'oauth_status': oauth_status,
+        'error': 'Twitch authorization was revoked or expired. Reconnect Twitch.' if revoked else (
+            None if complete else 'EventSub setup incomplete. Reconnect Twitch to repair subscriptions.'),
     }
 
 
@@ -168,6 +172,69 @@ async def ensure_subscriptions(request, broadcaster_id):
         return active
 
 
+async def maintain_user_authorization(streamer):
+    if not streamer:
+        return 'missing'
+    current_status = store.oauth_status(streamer.twitch_user_id)
+    if not store.claim_oauth_check(streamer.twitch_user_id):
+        return 'valid' if current_status in ('valid', 'checking') else current_status
+
+    retry_at = time.time() + 60
+    try:
+        access_token = vault.decrypt(streamer.access_token_enc)
+        refresh_token = vault.decrypt(streamer.refresh_token_enc)
+        async with httpx.AsyncClient(timeout=15) as http:
+            validate = await http.get(TWITCH_VALIDATE, headers={'Authorization': 'OAuth ' + access_token})
+            if validate.status_code == 200:
+                data = validate.json()
+                scopes = set(data.get('scopes') or [])
+                identity_ok = data.get('user_id') == streamer.twitch_user_id and data.get('client_id') == client_id()
+                if identity_ok and REQUIRED_SCOPES.issubset(scopes):
+                    store.set_oauth_health(streamer.twitch_user_id, 'valid')
+                    return 'valid'
+                store.set_oauth_health(streamer.twitch_user_id, 'revoked', next_check_at=time.time() + 3600)
+                return 'revoked'
+
+            if validate.status_code == 401 and refresh_token:
+                refreshed = await http.post(TWITCH_TOKEN, data={
+                    'client_id': client_id(),
+                    'client_secret': client_secret(),
+                    'grant_type': 'refresh_token',
+                    'refresh_token': refresh_token,
+                })
+                if refreshed.status_code == 200:
+                    token_data = refreshed.json()
+                    new_access = token_data.get('access_token', '')
+                    new_refresh = token_data.get('refresh_token') or refresh_token
+                    verify = await http.get(TWITCH_VALIDATE, headers={'Authorization': 'OAuth ' + new_access})
+                    if verify.status_code == 200:
+                        data = verify.json()
+                        scopes = set(data.get('scopes') or [])
+                        identity_ok = data.get('user_id') == streamer.twitch_user_id and data.get('client_id') == client_id()
+                        if identity_ok and REQUIRED_SCOPES.issubset(scopes):
+                            store.update_tokens(
+                                streamer.twitch_user_id,
+                                vault.encrypt(new_access),
+                                vault.encrypt(new_refresh),
+                            )
+                            store.set_oauth_health(streamer.twitch_user_id, 'valid')
+                            return 'valid'
+                    store.set_oauth_health(streamer.twitch_user_id, 'revoked', next_check_at=time.time() + 3600)
+                    return 'revoked'
+                if refreshed.status_code in (400, 401):
+                    store.set_oauth_health(streamer.twitch_user_id, 'revoked', next_check_at=time.time() + 3600)
+                    return 'revoked'
+
+            if validate.status_code == 401:
+                store.set_oauth_health(streamer.twitch_user_id, 'revoked', next_check_at=time.time() + 3600)
+                return 'revoked'
+    except (httpx.RequestError, ValueError, RuntimeError):
+        pass
+
+    store.set_oauth_health(streamer.twitch_user_id, 'unknown', next_check_at=retry_at)
+    return 'valid' if current_status in ('valid', 'checking') else current_status
+
+
 @app.get('/health')
 async def health():
     return {
@@ -183,15 +250,20 @@ async def health():
 @app.get('/api/state')
 async def state(request: Request, overlay: str | None = None):
     streamer = store.get_streamer_by_overlay(overlay) if overlay else None
+    oauth_status = 'valid'
     if not streamer:
         twitch_user_id = verify_session(request.cookies.get('raidrelic_session'))
         streamer = store.get_streamer_by_id(twitch_user_id) if twitch_user_id else None
+        if streamer:
+            oauth_status = await maintain_user_authorization(streamer)
+    elif streamer:
+        oauth_status = store.oauth_status(streamer.twitch_user_id)
     sessions = forge.snapshot_sessions(streamer.twitch_user_id) if streamer else []
     return {
-        'connection': connection_payload(streamer),
+        'connection': connection_payload(streamer, oauth_status),
         'simulation_enabled': False,
         'service_ready': service_ready(),
-        'now': __import__('time').time(),
+        'now': time.time(),
         'sessions': sessions,
     }
 
@@ -268,6 +340,7 @@ async def auth_callback(request: Request, code: str | None = None, state: str | 
         access_token_enc=vault.encrypt(access_token),
         refresh_token_enc=vault.encrypt(refresh_token),
     )
+    store.set_oauth_health(twitch_user_id, 'valid')
 
     try:
         subscriptions = await ensure_subscriptions(request, twitch_user_id)
@@ -328,7 +401,10 @@ async def eventsub_twitch(request: Request):
         broadcaster_id = HostedEngine.broadcaster_id(packet)
         streamer = store.get_streamer_by_id(broadcaster_id) if broadcaster_id else None
         if streamer:
-            revoked_kind = (packet.get('subscription') or {}).get('type')
+            subscription = packet.get('subscription') or {}
+            revoked_kind = subscription.get('type')
             store.set_subscriptions(broadcaster_id, [kind for kind in streamer.subscriptions if kind != revoked_kind])
+            if subscription.get('status') in ('authorization_revoked', 'user_removed'):
+                store.set_oauth_health(broadcaster_id, 'revoked', next_check_at=time.time() + 3600)
         return PlainTextResponse('', status_code=204)
     return PlainTextResponse('', status_code=204)
