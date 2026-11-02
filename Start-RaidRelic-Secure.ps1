@@ -38,6 +38,20 @@ try {
     $env:RAIDRELIC_SIMULATION = '0'
     $env:PORT = '3000'
 
+    Write-Host 'Validating Twitch app credentials...' -ForegroundColor DarkGray
+    try {
+        $credentialProbe = Invoke-RestMethod -Method Post -Uri 'https://id.twitch.tv/oauth2/token' -Body @{
+            client_id = $env:TWITCH_CLIENT_ID
+            client_secret = $env:TWITCH_CLIENT_SECRET
+            grant_type = 'client_credentials'
+        } -ErrorAction Stop
+        $credentialProbe = $null
+        Write-Host 'Twitch app credentials are valid.' -ForegroundColor Green
+    }
+    catch {
+        throw "Twitch rejected this Client ID / Client Secret pair. Copy the Client ID from the Twitch Developer Console (not the secret), use its current secret, and try again. Original error: $($_.Exception.Message)"
+    }
+
     $python = (Get-Command python -ErrorAction Stop).Source
     $logDir = Join-Path $root 'runtime'
     New-Item -ItemType Directory -Force -Path $logDir | Out-Null

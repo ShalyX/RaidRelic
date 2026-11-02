@@ -127,6 +127,59 @@ Built for the **Codex x TwitchCon Hackathon** using OpenAI Codex and Twitch Even
 
 Codex build session: `01a18920-5b89-704d-a5d8-fe8f5e392069`.
 
+## Hosted multi-tenant mode
+
+The `hosted-multitenant` deployment path turns RaidRelic into a stateless web service suitable for Vercel. Each streamer authorizes the same RaidRelic Twitch application, receives a stable opaque OBS overlay URL, and has independent raid sessions and archive state in shared durable storage.
+
+Hosted architecture:
+
+```text
+Twitch OAuth ───────────────► RaidRelic /auth/callback
+                                  │
+                                  ├── encrypted streamer token record
+                                  ├── permanent opaque overlay key
+                                  └── EventSub webhook subscriptions
+
+Twitch EventSub webhook ───► /eventsub/twitch
+                                  │
+                                  ▼
+                           multi-tenant forge engine
+                                  │
+                                  ▼
+                         Postgres / Supabase / Neon
+                                  │
+                                  ▼
+                    /api/state?overlay=<opaque-key>
+                                  │
+                                  ▼
+                           OBS browser source
+```
+
+Required hosted environment variables:
+
+```text
+TWITCH_CLIENT_ID
+TWITCH_CLIENT_SECRET
+DATABASE_URL
+RAIDRELIC_SESSION_SECRET
+RAIDRELIC_WEBHOOK_SECRET
+RAIDRELIC_TOKEN_KEY
+```
+
+`RAIDRELIC_TOKEN_KEY` must be a Fernet key and is used to encrypt persisted Twitch tokens. `RAIDRELIC_SESSION_SECRET` signs dashboard sessions. `RAIDRELIC_WEBHOOK_SECRET` verifies Twitch EventSub deliveries. Secrets belong in the hosting provider's encrypted environment settings, never in source control.
+
+For a stable production domain, also set:
+
+```text
+RAIDRELIC_BASE_URL=https://your-raidrelic-domain
+```
+
+Register `<RAIDRELIC_BASE_URL>/auth/callback` as the Twitch OAuth redirect URL. EventSub uses `<RAIDRELIC_BASE_URL>/eventsub/twitch` as its verified webhook callback.
+
+The hosted OAuth flow requests `user:read:chat`, `user:bot`, and `channel:bot` so the cloud-hosted RaidRelic application can subscribe to real chat events for the broadcaster. Raid events remain independent of chat permission.
+
+The hosted UI polls durable state at a short interval instead of depending on one long-lived Python process. This keeps the overlay safe across serverless instance changes while preserving the existing RaidRelic visual and deterministic relic logic.
+
 ## Known limits
 
-RaidRelic is still a hackathon prototype: one broadcaster per process/hosted instance, no production multi-tenant account system yet, and no replay of Twitch events missed while EventSub is disconnected. Hosted single-broadcaster mode and automatic OAuth token refresh are supported; the next product step is turning that into a true multi-tenant service with one permanent overlay URL per streamer.
+The original local path remains available for hackathon evidence and development. Hosted multi-tenant mode now isolates broadcasters and creates permanent overlay keys, but production still depends on a durable Postgres-compatible database and correctly configured Twitch/Vercel environment secrets. The current overlay uses short polling rather than a dedicated realtime fan-out service; Supabase Realtime or another push layer can replace polling later without changing the Twitch webhook or forge model.

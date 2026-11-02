@@ -1,0 +1,29 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    { "source": "/", "destination": "/index.html" },
+    { "source": "/overlay/:path*", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/api/:path*",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" },
+        { "key": "Referrer-Policy", "value": "no-referrer" }
+      ]
+    },
+    {
+      "source": "/eventsub/:path*",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" },
+        { "key": "Referrer-Policy", "value": "no-referrer" }
+      ]
+    }
+  ],
+  "functions": {
+    "index.py": {
+      "maxDuration": 30,
+      "excludeFiles": "{evidence/**,demo_*/**,ceo_*/**,premium_*/**,final_*/**,trailer_*/**,runtime/chrome-*/**,*.mp4,*.wav,*.jpg,*.png}"
+    }
+  }
+}

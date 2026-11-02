@@ -1,0 +1,85 @@
+import os
+import tempfile
+import unittest
+
+from app.hosted_engine import HostedEngine
+from app.hosted_store import HostedStore
+
+
+class Clock:
+    def __init__(self, now=1000):
+        self.now = now
+
+    def __call__(self):
+        return self.now
+
+
+def packet(message_id, kind, event):
+    return {
+        'metadata': {'message_id': message_id},
+        'payload': {'subscription': {'type': kind}, 'event': event},
+    }
+
+
+class HostedEngineTests(unittest.TestCase):
+    def setUp(self):
+        fd, self.path = tempfile.mkstemp(suffix='.sqlite3')
+        os.close(fd)
+        self.store = HostedStore('sqlite:///' + self.path.replace('\\', '/'))
+        self.clock = Clock()
+        self.engine = HostedEngine(self.store, duration=45, clock=self.clock)
+
+    def tearDown(self):
+        self.store.engine.dispose()
+        if os.path.exists(self.path):
+            os.unlink(self.path)
+
+    def raid(self, mid, broadcaster, raider='raider', viewers=12):
+        return packet(mid, 'channel.raid', {
+            'from_broadcaster_user_name': raider,
+            'from_broadcaster_user_id': 'from-' + mid,
+            'to_broadcaster_user_id': broadcaster,
+            'viewers': viewers,
+        })
+
+    def chat(self, mid, broadcaster, chatter, emote=False):
+        fragments = [{'type': 'text', 'text': 'W raid'}]
+        if emote:
+            fragments.append({'type': 'emote', 'text': 'Kappa', 'emote': {'id': '25'}})
+        return packet(mid, 'channel.chat.message', {
+            'broadcaster_user_id': broadcaster,
+            'chatter_user_id': chatter,
+            'chatter_user_name': chatter,
+            'message': {'text': 'W raid', 'fragments': fragments},
+        })
+
+    def test_streamers_forge_independently(self):
+        self.assertTrue(self.engine.apply(self.raid('r1', 'A', 'alpha')))
+        self.assertTrue(self.engine.apply(self.raid('r2', 'B', 'beta')))
+        self.engine.apply(self.chat('c1', 'A', 'alice', emote=True))
+        self.engine.apply(self.chat('c2', 'B', 'bob'))
+        a = self.engine.snapshot_sessions('A')[0]
+        b = self.engine.snapshot_sessions('B')[0]
+        self.assertEqual(a['raid']['from_broadcaster_user_name'], 'alpha')
+        self.assertEqual(b['raid']['from_broadcaster_user_name'], 'beta')
+        self.assertEqual(a['unique_chatters'], 1)
+        self.assertEqual(b['unique_chatters'], 1)
+        self.assertEqual(a['emotes'], 1)
+        self.assertEqual(b['emotes'], 0)
+
+    def test_duplicate_event_is_ignored(self):
+        raid = self.raid('same', 'A')
+        self.assertTrue(self.engine.apply(raid))
+        self.assertFalse(self.engine.apply(raid))
+        self.assertEqual(len(self.engine.snapshot_sessions('A')), 1)
+
+    def test_polling_tick_archives_without_background_process(self):
+        self.engine.apply(self.raid('r1', 'A'))
+        self.clock.now += 46
+        session = self.engine.snapshot_sessions('A')[0]
+        self.assertEqual(session['phase'], 'ARCHIVED')
+        self.assertIsNotNone(session['relic'])
+
+
+if __name__ == '__main__':
+    unittest.main()
