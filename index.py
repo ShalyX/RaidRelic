@@ -317,6 +317,9 @@ async def auth_callback(request: Request, code: str | None = None, state: str | 
             return RedirectResponse('/', status_code=303)
         raise HTTPException(status_code=403, detail='OAuth state invalid or expired. Reconnect Twitch.')
     if error or not code:
+        session_user_id = verify_session(request.cookies.get('raidrelic_session'))
+        if session_user_id and store.get_streamer_by_id(session_user_id):
+            return RedirectResponse('/', status_code=303)
         raise HTTPException(status_code=400, detail='Twitch authorization was not granted.')
 
     async with httpx.AsyncClient(timeout=15) as http:

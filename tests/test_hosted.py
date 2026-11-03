@@ -117,6 +117,38 @@ class HostedOAuthTests(unittest.TestCase):
             else:
                 os.environ['RAIDRELIC_MAINTENANCE_SECRET'] = original_secret
 
+    def test_error_callback_recovers_existing_session(self):
+        fd, path = tempfile.mkstemp(suffix='.sqlite3')
+        os.close(fd)
+        replacement_store = HostedStore('sqlite:///' + path.replace('\\', '/'))
+        original_store = hosted_app.store
+        original_secret = os.environ.get('RAIDRELIC_SESSION_SECRET')
+        try:
+            hosted_app.store = replacement_store
+            os.environ['RAIDRELIC_SESSION_SECRET'] = 'test-session-secret'
+            replacement_store.upsert_streamer(
+                twitch_user_id='streamer-1', login='streamer', display_name='Streamer',
+                access_token_enc='encrypted-access', refresh_token_enc='encrypted-refresh')
+            state = replacement_store.create_oauth_state(ttl=600)
+            session = hosted_app.sign_session('streamer-1')
+            client = TestClient(hosted_app.app)
+            response = client.get(
+                f'/auth/callback?state={state}&error=access_denied',
+                cookies={'raidrelic_session': session, 'raidrelic_oauth': state},
+                follow_redirects=False,
+            )
+            self.assertEqual(response.status_code, 303)
+            self.assertEqual(response.headers['location'], '/')
+        finally:
+            hosted_app.store = original_store
+            replacement_store.engine.dispose()
+            if original_secret is None:
+                os.environ.pop('RAIDRELIC_SESSION_SECRET', None)
+            else:
+                os.environ['RAIDRELIC_SESSION_SECRET'] = original_secret
+            if os.path.exists(path):
+                os.unlink(path)
+
     def test_refreshing_consumed_callback_recovers_existing_session(self):
         fd, path = tempfile.mkstemp(suffix='.sqlite3')
         os.close(fd)
