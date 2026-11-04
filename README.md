@@ -2,6 +2,8 @@
 
 **Every raid leaves something behind.**
 
+> **Live hosted beta (post-submission update):** [Open RaidRelic on Vercel](https://raidrelic.vercel.app). Streamers can connect their own Twitch channel, copy a permanent OBS Browser Source URL, and forge relics from real incoming raids. This public multi-tenant deployment was completed **after the November 2, 2026 Codex x TwitchCon submission deadline**; it is provided as a product-progress/testing link, **not** as a claim that these hosting features were included in the original hackathon submission. The submitted version and video demonstrate the earlier local Twitch EventSub + OBS implementation.
+
 RaidRelic turns a Twitch raid and the first burst of chat that follows it into a one-of-one collectible relic on stream. A real `channel.raid` event hijacks the OBS browser overlay, chat messages and emotes visibly charge the forge, rarity is derived from participation stats, and the completed relic is persisted to a Raid Archive.
 
 ![RaidRelic final relic drop](evidence/final-demo-04-drop.png)
