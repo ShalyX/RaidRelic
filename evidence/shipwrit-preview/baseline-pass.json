@@ -1,0 +1,25 @@
+{
+  "contract": "release-witness.json",
+  "target_origin": "raidrelic-git-hosted-multitenant-shalyxs-projects.vercel.app",
+  "timestamp_utc": "2026-11-11T20:42:24.534253+00:00",
+  "verdict": "PASS",
+  "total_steps": 2,
+  "completed_steps": 2,
+  "steps": [
+    {
+      "name": "service_health_and_durable_storage",
+      "pass": true,
+      "http_status": 200,
+      "failed_assertions": [],
+      "body_sha256": "7c4b5c5b7981fb3d527a6db4273a6800b3222092c1e5af73050d07342aceba2a"
+    },
+    {
+      "name": "database_read_path",
+      "pass": true,
+      "http_status": 200,
+      "failed_assertions": [],
+      "body_sha256": "166ae70857a56c784649c4a9676f8d805f9fd216cd6e1c5da4870323790a4b83"
+    }
+  ],
+  "sha256": "cd475dbfb8374c7f03078a1e1c52ea22a770092bdb3d265b71f12aa80f91bf46"
+}

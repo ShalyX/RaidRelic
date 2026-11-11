@@ -1,0 +1,21 @@
+{
+  "contract": "release-witness-broken.json",
+  "target_origin": "raidrelic-hjkb8ienz-shalyxs-projects.vercel.app",
+  "timestamp_utc": "2026-11-11T20:51:21.046520+00:00",
+  "verdict": "BLOCK",
+  "total_steps": 2,
+  "completed_steps": 1,
+  "steps": [
+    {
+      "name": "service_health_and_durable_storage",
+      "pass": false,
+      "http_status": 200,
+      "failed_assertions": [
+        "service_ready",
+        "durable_storage"
+      ],
+      "body_sha256": "186777ea78c7b7c13656d29a404636b0e2981f7c64d2f8fff2ec74cd6123870b"
+    }
+  ],
+  "sha256": "04d4540491a735ba95a68037e1b2abf540ccc9c2cfca408577509c3171aff222"
+}
