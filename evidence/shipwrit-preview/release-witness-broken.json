@@ -1,0 +1,39 @@
+{
+  "name": "raidrelic-preview-persistence",
+  "guard_deployments": false,
+  "allowed_hosts": [
+    "raidrelic-hjkb8ienz-shalyxs-projects.vercel.app"
+  ],
+  "timeout_s": 12,
+  "steps": [
+    {
+      "name": "service_health_and_durable_storage",
+      "method": "GET",
+      "path": "/health",
+      "expect": {
+        "status": 200,
+        "json": {
+          "ok": true,
+          "service_ready": true,
+          "durable_storage": true,
+          "oauth": true,
+          "token_encryption": true,
+          "webhook_verification": true
+        }
+      }
+    },
+    {
+      "name": "database_read_path",
+      "method": "GET",
+      "path": "/api/state?overlay=shipwrit-validation-probe",
+      "expect": {
+        "status": 200,
+        "json": {
+          "service_ready": true,
+          "simulation_enabled": false,
+          "connection.state": "credentials_required"
+        }
+      }
+    }
+  ]
+}

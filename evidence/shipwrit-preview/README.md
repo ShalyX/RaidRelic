@@ -11,6 +11,8 @@ Hermes Agent: `0.19.0`
 
 The same read-only Shipwrit contract was run by actual LLM-driven Hermes CLI sessions against three isolated Preview states:
 
+The BLOCK run used a copy of the root contract with only its host allowlist changed to the degraded deployment URL; that exact copy is preserved as `release-witness-broken.json` in this evidence folder.
+
 | Run | Result | Observation |
 |---|---|---|
 | Baseline | PASS | Both health/durability and database-backed state-read checks passed |
